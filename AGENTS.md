@@ -148,10 +148,17 @@ transport decision leak into the capture path.
 6. **Never call `interception_destroy_context` while the pump might be blocked**
    inside `interception_wait_with_timeout`. The code joins the pump first and calls
    `Environment.Exit` if the join times out.
-7. **`Interception.Stroke` must stay `Pack = 1` and 20 bytes.** It mirrors a C union;
-   the mouse member is declared unconditionally to force the size.
+7. **`Interception.MouseStroke` is a 20-byte `InterceptionMouseStroke`, not a tagged
+   union.** `InterceptionStroke` is `char[20]` and the device slot tells you the type.
+   Field order is `state, flags, rolling, x, y, information`, with two bytes of padding
+   before `x`. Use explicit layout; `Interception.cs` asserts the size at load time.
+   Note `state` holds buttons and wheel bits — motion is `state == 0`.
 8. **`RAWINPUTHEADER` is 24 bytes on x64**, `RAWMOUSE` 24, `RAWINPUT` 48. Do not
    "tidy" the explicit field offsets.
+9. **`interception_set_filter(context, predicate, filter)` — predicate is second.**
+   The filter is a `unsigned short`; passing it where the predicate belongs makes the
+   DLL call `0xFFFF` as a function pointer and the process dies with an
+   `AccessViolationException`. Always go through `Interception.SetMouseFilter`.
 
 ---
 
@@ -165,10 +172,16 @@ Verified on the dev host (no driver, RDP session only):
 - missing-`interception.dll` path returns exit code 3 with a useful message
 - published binary in `out\` runs
 
-**Unverified:** everything past `interception_create_context()` — the stroke pump,
-the gate, the hardware-id matching, and the `INTERCEPTION_MOUSE_MOVE` constant. There
-is no driver and no physical mouse on the dev host. This is what the T1–T8 procedure
-in `README.md` exists to establish, and it must run on the machine with the mouse.
+**Verified on real hardware** (one run, after the ABI fix):
+
+- `--list` opens a driver context and prints the correct hardware id for the mouse
+  (`HID\VID_046D&PID_C52B\...`), so the driver loads, the context is valid, and the
+  `IOCTL_GET_HARDWARE_ID` path works.
+
+**Unverified:** everything past that — the stroke pump, forwarding, and the gate. The
+first hardware run crashed in `interception_set_filter` because of the two ABI mistakes
+now recorded as invariants 7 and 9. T2–T8 in `README.md` must run on the machine with
+the mouse.
 
 ---
 
@@ -177,14 +190,12 @@ in `README.md` exists to establish, and it must run on the machine with the mous
 1. **HVCI / driver signing.** The dominant risk. If the machine will not load it,
    the fallback ladder is in `README.md` under *Troubleshooting*: attestation-signed
    custom KMDF filter, or test-signing mode, or abandon games and use a hook.
-2. **`INTERCEPTION_MOUSE_MOVE` is assumed to be `0x1000`.** If gating does nothing,
-   check this first against `interception.h`.
-3. **`interception_wait_with_timeout` is assumed to be exported.** It is used instead
+2. **`interception_wait_with_timeout` is assumed to be exported.** It is used instead
    of `interception_wait` so `Ctrl+C` is graceful. If it is missing the app will
    throw `EntryPointNotFoundException` immediately — which is at least obvious.
-4. **Anti-cheat.** Kernel anti-cheat may refuse to run alongside an unknown filter
+3. **Anti-cheat.** Kernel anti-cheat may refuse to run alongside an unknown filter
    driver. Fine for single-player, risky for competitive.
-5. **Unmaintained upstream.** Windows Updates may break it; a custom signed filter
+4. **Unmaintained upstream.** Windows Updates may break it; a custom signed filter
    driver is the eventual answer.
 
 ---

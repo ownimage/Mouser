@@ -409,10 +409,11 @@ Fill this in and keep it with the repo; it is the Phase 1 starting condition.
 ### Go / no-go
 
 - **T4 passes** — the architecture is sound and Phase 1 can start.
-- **T4 fails but T1–T3 pass** — the driver is loaded but not filtering. Check the
-  `INTERCEPTION_MOUSE_MOVE` constant (`0x1000` in `phase0/Interception.cs`) against
-  your `interception.h`, then confirm `--filter` matched the device you are actually
-  moving.
+- **T4 fails but T1–T3 pass** — the driver is loaded but not filtering. Confirm
+  `--filter` matched the device you actually moved. Then check that motion detection in
+  `Capture.cs` still reads `mouse.state == 0`: `0x1000` is
+  `INTERCEPTION_FILTER_MOUSE_MOVE`, it belongs to the filter word, and it never appears
+  in a stroke, so testing `flags & 0x1000` silently gates nothing.
 - **T1 fails** — signature or HVCI. Pick one of the three options under
   *Troubleshooting* before writing any more code.
 - **T2 fails** — a bug in the forwarding loop. Fix it before doing anything else; a
@@ -461,8 +462,16 @@ Memory Integrity and Secure Boot on. Options, in order of preference:
 3. Abandon the driver and use a `WH_MOUSE_LL` hook — fine everywhere except raw-input consumers, which is the one case you said matters.
 
 **`--gate` does nothing at all**
-The `INTERCEPTION_MOUSE_MOVE` mask value is wrong for your header version. It is
-`0x1000` in `phase0/Interception.cs`; check it against `interception.h`.
+Motion in an Interception mouse stroke has `state == 0`. There is no type tag and no
+move bit in a stroke, so anything testing `flags & 0x1000` will never gate. That value
+is `INTERCEPTION_FILTER_MOUSE_MOVE` and belongs only in the argument to
+`interception_set_filter`.
+
+**`AccessViolationException` in `interception_set_filter`**
+The arguments are in the wrong order. The real signature is
+`interception_set_filter(context, predicate, filter)`; passing the filter second makes
+the DLL call `0xFFFF` as a function pointer. Call `Interception.SetMouseFilter`
+instead of the import directly.
 
 **Gating freezes the wrong mouse**
 Add `--filter`. Without it, every mouse is gated and the tool warns you.

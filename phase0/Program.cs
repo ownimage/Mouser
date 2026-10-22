@@ -325,7 +325,7 @@ internal static class Program
                 Console.WriteLine($"  udp    : {options.UdpTarget}");
             }
 
-            Console.WriteLine("  keys   : G toggle gate, Q quit");
+            Console.WriteLine($"  keys   : {(gateEnabled ? "G toggle gate, Q quit" : "Q quit")}");
             Console.WriteLine();
 
             if (gateEnabled && target == 0)
@@ -334,7 +334,7 @@ internal static class Program
                 Console.WriteLine();
             }
 
-            Interception.interception_set_filter(context, Interception.FilterMouseAll, Interception.MousePredicate);
+            Interception.SetMouseFilter(context, Interception.FilterMouseAll);
             Console.WriteLine("  filter armed. Ctrl+C, Q, or killing this process restores the mouse.");
             Console.WriteLine();
 
@@ -355,12 +355,12 @@ internal static class Program
             pump.Start();
             reporter.Start();
 
-            WaitForQuit(capture);
+            WaitForQuit(capture, gateEnabled);
 
             capture.Stop();
             bool stopped = pump.Join(2000);
 
-            Interception.interception_set_filter(context, Interception.FilterNone, Interception.MousePredicate);
+            Interception.SetMouseFilter(context, Interception.FilterNone);
 
             if (!stopped)
             {
@@ -382,12 +382,12 @@ internal static class Program
     {
         Console.Error.WriteLine();
         Console.Error.WriteLine("!! stroke pump stalled; disabling the filter so the mouse keeps working.");
-        Interception.interception_set_filter(context, Interception.FilterNone, Interception.MousePredicate);
+        Interception.SetMouseFilter(context, Interception.FilterNone);
         capture.Stop();
         _cancel = true;
     }
 
-    private static void WaitForQuit(Capture capture)
+    private static void WaitForQuit(Capture capture, bool gateEnabled)
     {
         while (!_cancel)
         {
@@ -409,7 +409,7 @@ internal static class Program
                         break;
                     }
 
-                    if (key == ConsoleKey.G)
+                    if (key == ConsoleKey.G && gateEnabled)
                     {
                         capture.ToggleGate();
                         Console.WriteLine($"  gate -> {(capture.GateActive ? "ON" : "off")}");

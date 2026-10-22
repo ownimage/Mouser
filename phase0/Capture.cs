@@ -16,8 +16,8 @@ internal sealed class Capture
     private readonly ushort _holdDown;
     private readonly ushort _holdUp;
 
-    private readonly Interception.Stroke[] _incoming = new Interception.Stroke[64];
-    private readonly Interception.Stroke[] _outgoing = new Interception.Stroke[64];
+    private readonly Interception.MouseStroke[] _incoming = new Interception.MouseStroke[64];
+    private readonly Interception.MouseStroke[] _outgoing = new Interception.MouseStroke[64];
     private readonly long[] _latencySamples = new long[8192];
     private int _latencyIndex;
 
@@ -80,20 +80,20 @@ internal sealed class Capture
 
             for (int i = 0; i < count; i++)
             {
-                ref Interception.Stroke stroke = ref _incoming[i];
-                if (stroke.type != Interception.StrokeMouse)
-                {
-                    _outgoing[keep++] = stroke;
-                    continue;
-                }
-
-                ref Interception.MouseStroke mouse = ref stroke.mouse;
+                ref Interception.MouseStroke mouse = ref _incoming[i];
 
                 // Re-read the gate per stroke: a batch can contain the mode
                 // button press followed by motion in the same receive.
                 bool gating = target && GateActive;
 
-                if (gating && (mouse.flags & Interception.MotionMask) != 0)
+                // A mouse stroke carries no type tag. Motion is the stroke with no
+                // button or wheel bits set; 0x1000 is a filter bit, never a stroke
+                // flag. ATTRIBUTES_CHANGED is excluded so a display change still
+                // reaches the OS while gated.
+                bool motion = mouse.state == 0
+                    && (mouse.flags & Interception.FlagAttributesChanged) == 0;
+
+                if (gating && motion)
                 {
                     Interlocked.Add(ref _frameDx, mouse.x);
                     Interlocked.Add(ref _frameDy, mouse.y);
@@ -101,20 +101,20 @@ internal sealed class Capture
                     continue;
                 }
 
-                if (gating && (mouse.flags & Interception.WheelMask) != 0)
+                if (gating && (mouse.state & Interception.WheelMask) != 0)
                 {
-                    Interlocked.Add(ref _frameWheel, (short)mouse.rolling);
+                    Interlocked.Add(ref _frameWheel, mouse.rolling);
                     Interlocked.Increment(ref _gatedCount);
                     continue;
                 }
 
                 if (target && _holdDown != 0)
                 {
-                    if ((mouse.flags & _holdDown) != 0) _holdGate = true;
-                    else if ((mouse.flags & _holdUp) != 0) _holdGate = false;
+                    if ((mouse.state & _holdDown) != 0) _holdGate = true;
+                    else if ((mouse.state & _holdUp) != 0) _holdGate = false;
                 }
 
-                _outgoing[keep++] = stroke;
+                _outgoing[keep++] = mouse;
             }
 
             if (keep > 0 && Interception.interception_send(_context, device, _outgoing, (uint)keep) == 0)
