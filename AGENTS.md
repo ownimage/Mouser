@@ -202,6 +202,9 @@ the mouse.
 
 ## Environment gotchas already paid for
 
+- **Verify the binary before trusting a result.** The first hardware run of T2 used a
+  stale `mouser-phase0.exe` and produced a stack trace that looked like a live bug.
+  `--version` now prints `0.2.0+<sha>[-dirty]`; check it on the test machine first.
 - Windows PowerShell 5.1 is the shell here. `$PSScriptRoot` is **empty during
   parameter-default binding**; assign defaults in the script body. Avoid `?.` and
   `??`.

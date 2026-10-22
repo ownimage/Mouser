@@ -50,6 +50,8 @@ channel (UDP, Phase 0c) rather than through RDP.
 | Raw input path is blocked | `--gate` + `--rawdump` | raw reader goes silent |
 | Network is fast enough | `--ping` | median RTT well under 10 ms on LAN |
 
+`--version` prints the build stamp; check it before every hardware run.
+
 The `--rawdump` check is the important one. A `WH_MOUSE_LL` hook would fail it;
 that is the reason for the driver.
 
@@ -203,6 +205,15 @@ Set two variables once, to keep the rest of the procedure readable:
 $m = '.\mouser-phase0.exe'
 $f = 'VID_046D'      # replace with the substring you identify in T1
 ```
+
+Then prove you are running the build you think you are:
+
+```powershell
+& $m --version       # e.g. 0.2.0+3ef8b7d
+```
+
+If `--version` is not recognised, or the stamp is not the commit you just built, you
+are testing an old binary — stop and redeploy. This has already happened once.
 
 ### T1. Driver is alive
 

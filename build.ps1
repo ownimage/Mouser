@@ -51,6 +51,21 @@ $arguments = @(
     '--nologo'
 )
 
+# Stamp the git commit into the banner. The first hardware test ran against a
+# stale copy of the exe for exactly this reason.
+$stamp = '0.2.0'
+try {
+    $sha = & git -C $PSScriptRoot rev-parse --short HEAD 2>$null
+    if ($LASTEXITCODE -eq 0 -and $sha) {
+        $dirty = & git -C $PSScriptRoot status --porcelain 2>$null
+        if ($dirty) { $sha = "$sha-dirty" }
+        $stamp = "$stamp+$sha"
+    }
+} catch {
+    # No git, or not a repo. The plain version is still useful.
+}
+$arguments += "-p:InformationalVersion=$stamp"
+
 if ($FrameworkDependent) {
     $arguments += '--self-contained'
     $arguments += 'false'

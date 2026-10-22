@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 
 namespace Mouser.Phase0;
@@ -35,6 +36,7 @@ internal sealed class Options
                 case "--rawdump": options.Mode = "rawdump"; break;
                 case "--recv": options.Mode = "recv"; break;
                 case "--ping": options.Mode = "ping"; break;
+                case "--version": options.Mode = "version"; break;
                 case "-h":
                 case "--help": options.Mode = "help"; break;
 
@@ -78,6 +80,7 @@ internal sealed class Options
               mouser-phase0 --rawdump
               mouser-phase0 --recv        [--port 7801]
               mouser-phase0 --ping        --udp host:port
+              mouser-phase0 --version
 
             modes:
               --list         show mouse/keyboard hardware ids as seen by the driver
@@ -149,6 +152,15 @@ internal static class Program
 {
     private static volatile bool _cancel;
 
+    /// <summary>
+    /// Printed by --version and in the capture banner. build.ps1 appends the git
+    /// commit, so a stale binary on the test machine is obvious at a glance.
+    /// </summary>
+    private static string BuildVersion =>
+        typeof(Program).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? typeof(Program).Assembly.GetName().Version?.ToString()
+        ?? "unknown";
+
     private static int Main(string[] args)
     {
         try { Console.OutputEncoding = Encoding.UTF8; } catch { }
@@ -178,6 +190,9 @@ internal static class Program
                 return 2;
             case "help":
                 Options.PrintUsage();
+                return 0;
+            case "version":
+                Console.WriteLine(BuildVersion);
                 return 0;
             case "rawdump":
                 return RawDump.Run(() => _cancel);
@@ -310,6 +325,7 @@ internal static class Program
             Console.WriteLine("mouser phase0");
             Console.WriteLine($"  device : {targetLabel}");
             Console.WriteLine($"  mode   : {(gateEnabled ? "gate" : "passthrough")}");
+            Console.WriteLine($"  build  : {BuildVersion}");
 
             if (gateEnabled)
             {
